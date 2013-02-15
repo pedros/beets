@@ -66,23 +66,46 @@ def _missing(album, lib=None):
                 yield item
 
 
+def _format(song):
+    '''
+    Format unicode-encoded representation of a pygrooveshark song.
+    '''
+    return " - ".join([song.artist.name.encode('utf-8'),
+                       song.album.name.encode('utf-8'),
+                       song.name.encode('utf-8')])
+
+
+def _exact_match(item, song):
+    '''
+    Return whether item and song have the exact same strings for track,
+    album and artist fields.
+    '''
+    matches_title = item.title == song.name
+    matches_album = item.album == song.album.name
+    matches_artist = item.artist == song.artist.name
+    return matches_title and matches_album and matches_artist
+
+
 def _matches(songs, albums, artists):
     '''Given iterators of pygrooveshark `songs`, `albums`, and
     `artists`, return an iterator of any `song`s spanning a transitive
     closure over all three collections.
     '''
-    # naive algorithm with O(n*m*p). must profile to check whether problematic
-    # TODO: index everything in some data structure for O(n+m+p)
+    mapping = {}
+
     for artist in artists:
-        for album in albums:
-            for song in songs:
-                song_from_album = song.album.id == album.id
-                song_from_artist = song.artist.id == artist.id
-                album_from_artist = album.artist.id == artist.id
-                if song_from_album and song_from_artist and album_from_artist:
-                    log.debug('{0}: found {1}'.format(plugin,
-                                                      unicode(song.name)))
-                    yield song
+        mapping[artist.id] = {}
+
+    for album in albums:
+        if album.artist.id in mapping:
+            mapping[album.artist.id][album.id] = {}
+
+    for song in songs:
+        if song.artist.id in mapping:
+            if song.album.id in mapping[song.artist.id]:
+                log.debug('{0}: found {1}'.format(plugin,
+                                                  _format(song)))
+                yield song
 
 
 def _item(track_info, album_info, album_id):
@@ -133,7 +156,7 @@ def _item(track_info, album_info, album_id):
 
 def _candidates(item):
     '''Given a track `item`, query grooveshark for matching songs,
-    albums, and artists, and yield any matching `song`s.
+    albums, and artists, and return the first matching `song`.
     '''
     # the 3 calls are necessary because grooveshark's API does not
     # offer, to my knowledge, an advanced query syntax, so we query for
@@ -147,7 +170,10 @@ def _candidates(item):
     log.debug('{0}: got {1} potential artists'.format(plugin, len(artists)))
 
     for song in _matches(songs, albums, artists):
-        yield song
+        if _exact_match(item, song):
+            log.debug('{0}: {1} is an exact match'
+                      .format(plugin, _format(song)))
+            yield song
 
 
 def _download(song, directory=None):
