@@ -183,24 +183,12 @@ def _download(song, directory=None):
         directory = tempfile.mkdtemp()
     path = os.path.join(directory, song.id)
     mkdirall(path)
+    raw = song.safe_download()
 
-    data = song.stream.data
-    size = song.stream.size
-    read = 0
-    buff = 512 * 1024
     with open(path, 'wb') as f:
-        while True:
-            chunk = data.read(buff)
-            if not chunk:
-                break
-            nbytes = len(chunk)
-            read += nbytes
-            f.write(chunk)
-            log.debug('{0}: wrote {1}/{2} bytes to {3}'
-                      .format(plugin, nbytes, buff, path))
-
-        log.debug('{0}: wrote {1}/{2} bytes to {3}'
-                  .format(plugin, read, size, path))
+        f.write(raw)
+    log.debug('{0}: wrote {1} bytes to {2}'
+              .format(plugin, len(raw), path))
 
     return path
 
