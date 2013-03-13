@@ -18,8 +18,6 @@ import os
 import logging
 import tempfile
 
-import grooveshark
-
 from beets import config
 from beets.autotag import hooks
 from beets.library import Item
@@ -30,8 +28,6 @@ from beets.util import mkdirall
 
 plugin = 'missingtracks'
 log = logging.getLogger('beets')
-client = grooveshark.Client()
-client.init()
 
 
 def _missing(album, lib=None):
@@ -154,7 +150,7 @@ def _item(track_info, album_info, album_id):
                  'year':               a.year})
 
 
-def _candidates(item):
+def _candidates(item, client):
     '''Given a track `item`, query grooveshark for matching songs,
     albums, and artists, and return the first matching `song`.
     '''
@@ -271,7 +267,11 @@ class MissingTracksPlugin(BeetsPlugin):
                     print_obj(item, lib, fmt=fmt)
 
                     if download:
-                        for s in _candidates(item):
+                        if not self.client:
+                            import grooveshark
+                            self.client = grooveshark.Client()
+                            self.client.init()
+                        for s in _candidates(item, self.client):
                             tmp = _download(s, tmpdir)
                             item = _update(item, tmp)
                             if move:
