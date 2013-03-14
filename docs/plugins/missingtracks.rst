@@ -25,11 +25,11 @@ install using `pip`_ by typing::
     pip install pygrooveshark
 
 After you have ``pygrooveshark`` installed, enable the plugin by putting
-``fetchgroove`` on your ``plugins`` line in :doc:`config file
+``missingtracks`` on your ``plugins`` line in :doc:`config file
 </reference/config>`::
 
     plugins:
-        fetchgroove
+        missingtracks
         ...
 
 Configuration
@@ -38,7 +38,7 @@ Configuration
 The plugin accepts four configuration directives, either in your
 configuration file::
 
-    fetchgroove:
+    missingtracks:
         download: no
         move: no
         format: FMTSTR
@@ -115,6 +115,13 @@ Print out a unicode histogram of the missing track years using `spark`_::
     beet missing -f '$year' | spark
     ▆▁▆█▄▇▇▄▇▇▁█▇▆▇▂▄█▁██▂█▁▁██▁█▂▇▆▂▇█▇▇█▆▆▇█▇█▇▆██▂▇
 
+
+TODO
+----
+
+- Make downloading from Grooveshark more robust, by better mimicking
+  their Javascript client.
+ 
 --------------
 
 .. _Grooveshark: https://grooveshark.com/
