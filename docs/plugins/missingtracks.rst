@@ -1,26 +1,26 @@
 Missing Tracks Plugin
 =====================
 
-This plugin adds a new command, ``missing`` or ``miss``, which finds and
-lists, for every album in your collection, which tracks are missing.
-Optionally, it downloads each track it can find on
-`Grooveshark`_, by default to a temporary
-directory of your choosing for a later ``import``, or directly into your
-music collection base directory.
+This plugin adds a new command, ``missing`` or ``miss``, which finds
+and lists, for every album in your collection, which tracks are
+missing.  Optionally, it downloads each track it can find on
+`Grooveshark`_, by default to a temporary directory of your choosing
+for a later ``import``, or directly into your music collection base
+directory.
 
-Listing missing files requires one network call to MusicBrainz the first
-time it is run. Subsequent listings will retrieve cached entries from
-the library [#]_.
+Listing missing files requires one network call to MusicBrainz the
+first time it is run. Subsequent listings will retrieve cached entries
+from the library [#]_.
 
-Downloading missing files requires four additional network calls: three
-to determine with no ambiguity which stream to choose [#]_ and
+Downloading missing files requires four additional network calls:
+three to determine with no ambiguity which stream to choose [#]_ and
 one to actually download the file [#]_.
 
 Installation
 ------------
 
-The plugin requires `pygrooveshark`_, which you can install using `pip`_
-by typing::
+If downloading, the plugin requires `pygrooveshark`_, which you can
+install using `pip`_ by typing::
 
     pip install pygrooveshark
 
