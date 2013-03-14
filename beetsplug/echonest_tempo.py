@@ -22,6 +22,7 @@ from beets import ui
 from beets import config
 import pyechonest.config
 import pyechonest.song
+import socket
 
 # Global logger.
 log = logging.getLogger('beets')
@@ -59,6 +60,8 @@ def get_tempo(artist, title):
     """Get the tempo for a song."""
     # We must have sufficient metadata for the lookup. Otherwise the API
     # will just complain.
+    artist = artist.replace(u'\n', u' ').strip()
+    title = title.replace(u'\n', u' ').strip()
     if not artist or not title:
         return None
 
@@ -75,8 +78,9 @@ def get_tempo(artist, title):
                 # Wait and try again.
                 time.sleep(RETRY_INTERVAL)
             else:
-                raise
-        except pyechonest.util.EchoNestIOError as e:
+                log.warn(u'echonest_tempo: {0}'.format(e.args[0][0]))
+                return None
+        except (pyechonest.util.EchoNestIOError, socket.error) as e:
             log.debug(u'echonest_tempo: IO error: {0}'.format(e))
             time.sleep(RETRY_INTERVAL)
         else:

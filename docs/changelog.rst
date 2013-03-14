@@ -1,8 +1,74 @@
 Changelog
 =========
 
-1.1b2 (in development)
+1.1b3 (in development)
 ----------------------
+
+New configuration options:
+
+* :ref:`languages` controls the preferred languages when selecting an alias
+  from MusicBrainz. This feature requires `python-musicbrainz-ngs`_ 0.3 or
+  later. Thanks to Sam Doshi.
+* :ref:`detail` enables a mode where all tracks are listed in the importer UI,
+  as opposed to only changed tracks.
+* The ``--flat`` option to the ``beet import`` command treats an entire
+  directory tree of music files as a single album. This can help in situations
+  where a multi-disc album is split across multiple directories.
+* :doc:`/plugins/importfeeds`: An option was added to use absolute, rather
+  than relative, paths. Thanks to Lucas Duailibe.
+
+Other stuff:
+
+* A new :doc:`/plugins/mbsync` provides a command that looks up each item and
+  track in MusicBrainz and updates your library to reflect it. This can help
+  you easily correct errors that have been fixed in the MB database. Thanks to
+  Jakob Schnitzer.
+* :doc:`/plugins/convert`: A new ``--keep-new`` option lets you store
+  transcoded files in your library while backing up the originals (instead of
+  vice-versa). Thanks to Lucas Duailibe.
+* :doc:`/plugins/convert`: Also, a new ``auto`` config option will transcode
+  audio files automatically during import. Thanks again to Lucas Duailibe.
+* :doc:`/plugins/chroma`: A new ``fingerprint`` command lets you generate and
+  store fingerprints for items that don't yet have them. One more round of
+  applause for Lucas Duailibe.
+* :doc:`/plugins/echonest_tempo`: API errors now issue a warning instead of
+  exiting with an exception. We also avoid an error when track metadata
+  contains newlines.
+* When the importer encounters an error (insufficient permissions, for
+  example) when walking a directory tree, it now logs an error instead of
+  crashing.
+* In path formats, null database values now expand to the empty string instead
+  of the string "None".
+* Add "System Volume Information" (an internal directory found on some
+  Windows filesystems) to the default ignore list.
+* Fix a crash when ReplayGain values were set to null.
+* Fix a crash when iTunes Sound Check tags contained invalid data.
+* Fix an error when the configuration file (``config.yaml``) is completely
+  empty.
+* Fix an error introduced in 1.1b1 when importing using timid mode. Thanks to
+  Sam Doshi.
+* :doc:`/plugins/convert`: Fix a bug when creating files with Unicode
+  pathnames.
+* Fix a spurious warning from the Unidecode module when matching albums that
+  are missing all metadata.
+* Fix Unicode errors when a directory or file doesn't exist when invoking the
+  import command. Thanks to Lucas Duailibe.
+* :doc:`/plugins/mbcollection`: Show friendly, human-readable errors when
+  MusicBrainz exceptions occur.
+* :doc:`/plugins/echonest_tempo`: Catch socket errors that are not handled by
+  the Echo Nest library.
+* :doc:`/plugins/chroma`: Catch Acoustid Web service errors when submitting
+  fingerprints.
+* :ref:`extend-query`: Plugins can now extend the query syntax. Thanks to
+  Philippe Mongeau
+
+1.1b2 (February 16, 2013)
+-------------------------
+
+The second beta of beets 1.1 uses the fancy new configuration infrastructure to
+add many, many new config options. The import process is more flexible;
+filenames can be customized in more detail; and more. This release also
+supports Windows Media (ASF) files and iTunes Sound Check volume normalization.
 
 This version introduces one **change to the default behavior** that you should
 be aware of. Previously, when importing new albums matched in MusicBrainz, the
@@ -95,6 +161,7 @@ Other new stuff:
 * Fix an error when migrating the ``.beetsstate`` file on Windows.
 * A nicer error message is now given when the configuration file contains tabs.
   (YAML doesn't like tabs.)
+* Fix the ``-l`` (log path) command-line option for the ``import`` command.
 
 .. _iTunes Sound Check: http://support.apple.com/kb/HT2425
 

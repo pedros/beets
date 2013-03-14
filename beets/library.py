@@ -17,6 +17,7 @@
 import sqlite3
 import os
 import re
+import difflib
 import sys
 import logging
 import shlex
@@ -218,6 +219,8 @@ def format_for_path(value, key=None, pathmod=None):
     elif key == 'samplerate':
         # Sample rate formatted as kHz.
         value = u'%ikHz' % ((value or 0) // 1000)
+    elif value is None:
+        value = u''
     else:
         value = unicode(value)
 
@@ -512,6 +515,19 @@ class RegexpQuery(FieldQuery):
         value = util.as_string(getattr(item, self.field))
         return self.regexp.search(value) is not None
 
+
+class PluginQuery(FieldQuery):
+    """The base class to add queries using beets plugins. Plugins can add
+    special queries by defining a subclass of PluginQuery and overriding
+    the match method.
+    """
+    def __init__(self, field, pattern):
+        super(PluginQuery, self).__init__(field, pattern)
+
+    def clause(self):
+        clause = "{name}(?, {field})".format(name=self.__class__.__name__, field=self.field)
+        return clause, [self.pattern]
+
 class BooleanQuery(MatchQuery):
     """Matches a boolean field. Pattern should either be a boolean or a
     string reflecting a boolean.
@@ -570,7 +586,6 @@ class CollectionQuery(Query):
             r'(?<!\\):'  # Unescaped :
         r')?'
 
-        r'((?<!\\):?)'   # Unescaped : indicating a regex.
         r'(.+)',         # The term itself.
 
         re.I  # Case-insensitive.
@@ -578,29 +593,35 @@ class CollectionQuery(Query):
     @classmethod
     def _parse_query_part(cls, part):
         """Takes a query in the form of a key/value pair separated by a
-        colon. An additional colon before the value indicates that the
-        value is a regular expression. Returns tuple (key, term,
-        is_regexp) where key is None if the search term has no key and
-        is_regexp indicates whether term is a regular expression or an
-        ordinary substring match.
+        colon. The value part is matched against a list of prefixes that can be
+        extended by plugins to add custom query types. For example, the colon
+        prefix denotes a regular exporession query.
+
+        The function returns a tuple of(key, value, Query)
 
         For instance,
-        parse_query('stapler') == (None, 'stapler', false)
-        parse_query('color:red') == ('color', 'red', false)
-        parse_query(':^Quiet') == (None, '^Quiet', true)
-        parse_query('color::b..e') == ('color', 'b..e', true)
+        parse_query('stapler') == (None, 'stapler', None)
+        parse_query('color:red') == ('color', 'red', None)
+        parse_query(':^Quiet') == (None, '^Quiet', RegexpQuery)
+        parse_query('color::b..e') == ('color', 'b..e', RegexpQuery)
 
-        Colons may be 'escaped' with a backslash to disable the keying
+        Prefixes may be 'escaped' with a backslash to disable the keying
         behavior.
         """
         part = part.strip()
         match = cls._pq_regex.match(part)
+
+        cls.prefixes = {':': RegexpQuery}
+        cls.prefixes.update(plugins.queries())
+
         if match:
-            return (
-                match.group(1),  # Key.
-                match.group(3).replace(r'\:', ':'),  # Term.
-                match.group(2) == ':',  # Regular expression.
-            )
+            key = match.group(1)
+            term = match.group(2).replace('\:', ':')
+            # match the search term against the list of prefixes
+            for pre, query in cls.prefixes.items():
+                if term.startswith(pre):
+                    return (key, term[len(pre):], query)
+            return (key, term, None) # None means a normal query
 
     @classmethod
     def from_strings(cls, query_parts, default_fields=None,
@@ -615,7 +636,8 @@ class CollectionQuery(Query):
             res = cls._parse_query_part(part)
             if not res:
                 continue
-            key, pattern, is_regexp = res
+
+            key, pattern, prefix_query = res
 
             # No key specified.
             if key is None:
@@ -624,8 +646,8 @@ class CollectionQuery(Query):
                     subqueries.append(PathQuery(pattern))
                 else:
                     # Match any field.
-                    if is_regexp:
-                        subq = AnyRegexpQuery(pattern, default_fields)
+                    if prefix_query:
+                        subq = AnyPluginQuery(pattern, default_fields, cls=prefix_query)
                     else:
                         subq = AnySubstringQuery(pattern, default_fields)
                     subqueries.append(subq)
@@ -640,8 +662,8 @@ class CollectionQuery(Query):
 
             # Other (recognized) field.
             elif key.lower() in all_keys:
-                if is_regexp:
-                    subqueries.append(RegexpQuery(key.lower(), pattern))
+                if prefix_query is not None:
+                    subqueries.append(prefix_query(key.lower(), pattern))
                 else:
                     subqueries.append(SubstringQuery(key.lower(), pattern))
 
@@ -733,6 +755,34 @@ class AnyRegexpQuery(CollectionQuery):
                 return True
         return False
 
+class AnyPluginQuery(CollectionQuery):
+    """A query that dispatch the matching function to the match method of
+    the cls provided to the contstructor using a list of metadata fields.
+    """
+
+    def __init__(self, pattern, fields=None, cls=PluginQuery):
+        subqueries = []
+        self.pattern = pattern
+        self.fields = fields
+        for field in self.fields:
+            subqueries.append(cls(field, pattern))
+        super(AnyPluginQuery, self).__init__(subqueries)
+
+    def clause(self):
+        return self.clause_with_joiner('or')
+
+    def match(self, item):
+        for field in self.fields:
+            try:
+                val = getattr(item, field)
+            except KeyError:
+                continue
+            if isinstance(val, basestring):
+                for subq in self.subqueries:
+                    if subq.match(self.pattern, val):
+                        return True
+        return False
+    
 class MutableCollectionQuery(CollectionQuery):
     """A collection query whose subqueries may be modified after the
     query is initialized.
@@ -796,6 +846,33 @@ class ResultIterator(object):
         row = self.rowiter.next()  # May raise StopIteration.
         return Item(row)
 
+def get_query(val, album=False):
+    """Takes a value which may be None, a query string, a query string
+    list, or a Query object, and returns a suitable Query object. album
+    determines whether the query is to match items or albums.
+    """
+    if album:
+        default_fields = ALBUM_DEFAULT_FIELDS
+        all_keys = ALBUM_KEYS
+    else:
+        default_fields = ITEM_DEFAULT_FIELDS
+        all_keys = ITEM_KEYS
+
+    # Convert a single string into a list of space-separated
+    # criteria.
+    if isinstance(val, basestring):
+        val = val.split()
+
+    if val is None:
+        return TrueQuery()
+    elif isinstance(val, list) or isinstance(val, tuple):
+        return AndQuery.from_strings(val, default_fields, all_keys)
+    elif isinstance(val, Query):
+        return val
+    else:
+        raise ValueError('query must be None or have type Query or str')
+
+
 
 # An abstract library.
 
@@ -805,37 +882,6 @@ class BaseLibrary(object):
     """
     def __init__(self):
         raise NotImplementedError
-
-
-    # Helpers.
-
-    @classmethod
-    def _get_query(cls, val=None, album=False):
-        """Takes a value which may be None, a query string, a query
-        string list, or a Query object, and returns a suitable Query
-        object. album determines whether the query is to match items
-        or albums.
-        """
-        if album:
-            default_fields = ALBUM_DEFAULT_FIELDS
-            all_keys = ALBUM_KEYS
-        else:
-            default_fields = ITEM_DEFAULT_FIELDS
-            all_keys = ITEM_KEYS
-
-        # Convert a single string into a list of space-separated
-        # criteria.
-        if isinstance(val, basestring):
-            val = val.split()
-
-        if val is None:
-            return TrueQuery()
-        elif isinstance(val, list) or isinstance(val, tuple):
-            return AndQuery.from_strings(val, default_fields, all_keys)
-        elif isinstance(val, Query):
-            return val
-        elif not isinstance(val, Query):
-            raise ValueError('query must be None or have type Query or str')
 
 
     # Basic operations.
@@ -1128,6 +1174,10 @@ class Library(BaseLibrary):
                 # Add the REGEXP function to SQLite queries.
                 conn.create_function("REGEXP", 2, _regexp)
 
+                # Register plugin queries 
+                for prefix, query in plugins.queries().items():
+                    conn.create_function(query.__name__, 2, query(None, None).match)
+
                 self._connections[thread_id] = conn
                 return conn
 
@@ -1356,7 +1406,7 @@ class Library(BaseLibrary):
     # Querying.
 
     def albums(self, query=None, artist=None):
-        query = self._get_query(query, True)
+        query = get_query(query, True)
         if artist is not None:
             # "Add" the artist to the query.
             query = AndQuery((query, MatchQuery('albumartist', artist)))
@@ -1370,7 +1420,7 @@ class Library(BaseLibrary):
         return [Album(self, dict(res)) for res in rows]
 
     def items(self, query=None, artist=None, album=None, title=None):
-        queries = [self._get_query(query, False)]
+        queries = [get_query(query, False)]
         if artist is not None:
             queries.append(MatchQuery('artist', artist))
         if album is not None:

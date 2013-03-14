@@ -56,7 +56,7 @@ Here's an example plugin that adds a simple command::
     from beets.ui import Subcommand
 
     my_super_command = Subcommand('super', help='do something super')
-    def say_hi(lib, config, opts, args):
+    def say_hi(lib, opts, args):
         print "Hello everybody! I'm a plugin!"
     my_super_command.func = say_hi
 
@@ -78,7 +78,6 @@ myfunction``. This function should take the following parameters: ``lib`` (a
 beets ``Library`` object) and ``opts`` and ``args`` (command-line options and
 arguments as returned by `OptionParser.parse_args`_).
 
-.. _ConfigParser object: http://docs.python.org/library/configparser.html
 .. _OptionParser.parse_args:
     http://docs.python.org/library/optparse.html#parsing-arguments
 
@@ -115,35 +114,35 @@ currently available are:
 * *pluginload*: called after all the plugins have been loaded after the ``beet``
   command starts
 
-* *import*: called after a ``beet import`` command fishes (the ``lib`` keyword
+* *import*: called after a ``beet import`` command finishes (the ``lib`` keyword
   argument is a Library object; ``paths`` is a list of paths (strings) that were
   imported)
 
 * *album_imported*: called with an ``Album`` object every time the ``import``
   command finishes adding an album to the library. Parameters: ``lib``,
-  ``album``, ``config``
+  ``album``
 
 * *item_imported*: called with an ``Item`` object every time the importer adds a
   singleton to the library (not called for full-album imports). Parameters:
-  ``lib``, ``item``, ``config``
+  ``lib``, ``item``
 
 * *write*: called with an ``Item`` object just before a file's metadata is
   written to disk (i.e., just before the file on disk is opened).
 
 * *import_task_start*: called when before an import task begins processing.
-  Parameters: ``task`` and ``config``.
+  Parameters: ``task`` (an `ImportTask`) and ``session`` (an `ImportSession`).
 
 * *import_task_apply*: called after metadata changes have been applied in an
-  import task. Parameters: ``task`` and ``config``.
+  import task. Parameters: ``task`` and ``session``.
 
 * *import_task_choice*: called after a decision has been made about an import
   task. This event can be used to initiate further interaction with the user.
   Use ``task.choice_flag`` to determine the action to be taken. Parameters:
-  ``task`` and ``config``.
+  ``task`` and ``session``.
 
 * *import_task_files*: called after an import task finishes manipulating the
   filesystem (copying and moving files, writing metadata tags). Parameters:
-  ``task`` and ``config``.
+  ``task`` and ``session``.
 
 * *library_opened*: called after beets starts up and initializes the main
   Library object. Parameter: ``lib``.
@@ -151,7 +150,8 @@ currently available are:
 * *database_change*: a modification has been made to the library database. The
   change might not be committed yet. Parameter: ``lib``.
 
-* *cli_exit*: called just before the ``beet`` command-line program exits. Parameter: ``lib``.
+* *cli_exit*: called just before the ``beet`` command-line program exits.
+  Parameter: ``lib``.
 
 The included ``mpdupdate`` plugin provides an example use case for event listeners.
 
@@ -323,3 +323,36 @@ to register it::
             self.import_stages = [self.stage]
         def stage(self, config, task):
             print('Importing something!')
+
+.. _extend-query:
+
+Extend the Query Syntax
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Beets already support searching using regular expressions by prepending search
+terms with the colon prefix. It is possible to add new prefix by extending the
+``PluginQuery`` class.
+
+The plugin then need to declare its new queries by returning a ``dict`` of
+``{prefix: PluginQuery}`` from the ``queries`` method.
+
+The following example plugins declares a query using the ``@`` prefix. So the
+plugin will be called if we issue a command like ``beet ls @something`` or
+``beet ls artist:@something``::
+
+    from beets.plugins import BeetsPlugin
+    from beets.Library import PluginQuery
+
+    class ExampleQuery(PluginQuery):
+        def match(self, pattern, val):
+            return True # this will simply match everything
+
+    class ExamplePlugin(BeetsPlugin):
+        def queries():
+            # plugins need to declare theire queries by
+            # returning a dict of {prefix: PluginQuery}
+            # from the queries() function
+            return {
+                '@': ExampleQuery
+            }
+

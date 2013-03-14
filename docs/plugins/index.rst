@@ -61,6 +61,7 @@ disabled by default, but you can turn them on as described above.
    info
    smartplaylist
    missingtracks
+   mbsync
 
 Autotagger Extensions
 ''''''''''''''''''''''
@@ -74,6 +75,7 @@ Metadata
 * :doc:`lyrics`: Automatically fetch song lyrics.
 * :doc:`echonest_tempo`: Automatically fetch song tempos (bpm).
 * :doc:`lastgenre`: Fetch genres based on Last.fm tags.
+* :doc:`mbsync`: Fetch updated metadata from MusicBrainz
 * :doc:`fetchart`: Fetch album cover art from various sources.
 * :doc:`embedart`: Embed album art images into files' metadata.
 * :doc:`replaygain`: Calculate volume normalization for players that support it.
