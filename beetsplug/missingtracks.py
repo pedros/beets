@@ -52,7 +52,7 @@ def _missing(album, lib=None):
         # items are stored in library without path field
         # this might break something, like the web plugin
         album_info = hooks._album_for_id(album.mb_albumid)
-        for track_info in album_info.tracks:
+        for track_info in getattr(album_info, 'tracks', []):
             if track_info.track_id not in item_mbids:
                 item = _item(track_info, album_info, album.id)
                 log.debug('{0}: {1} is missing (caching)'
